@@ -1,6 +1,7 @@
 package io.camunda.zeebe.spring.client.bean;
 
-import org.springframework.core.LocalVariableTableParameterNameDiscoverer;
+import org.springframework.core.DefaultParameterNameDiscoverer;
+import org.springframework.core.ParameterNameDiscoverer;
 
 import static org.springframework.core.annotation.AnnotationUtils.findAnnotation;
 
@@ -8,16 +9,15 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.sql.Array;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 public class MethodInfo implements BeanInfo {
 
-  private static LocalVariableTableParameterNameDiscoverer parameterNameDiscoverer = new LocalVariableTableParameterNameDiscoverer();
+  // Spring 5/6 compatible; avoids removed LocalVariableTableParameterNameDiscoverer
+  private static final ParameterNameDiscoverer parameterNameDiscoverer =
+    new DefaultParameterNameDiscoverer();
 
   private ClassInfo classInfo;
   private Method method;
@@ -63,23 +63,33 @@ public class MethodInfo implements BeanInfo {
 
   public List<ParameterInfo> getParameters() {
     Parameter[] parameters = method.getParameters();
-    String[] parameterNames = parameterNameDiscoverer.getParameterNames(method);
+    String[] discoveredNames = parameterNameDiscoverer.getParameterNames(method);
 
     ArrayList<ParameterInfo> result = new ArrayList<>();
     for (int i = 0; i < parameters.length; i++) {
-      result.add(new ParameterInfo(parameters[i], parameterNames[i]));
+      final String name =
+        (discoveredNames != null && i < discoveredNames.length && discoveredNames[i] != null)
+          ? discoveredNames[i]
+          : parameters[i].getName(); // fallback (requires javac -parameters for real names)
+
+      result.add(new ParameterInfo(parameters[i], name));
     }
     return result;
   }
 
   public List<ParameterInfo> getParametersFilteredByAnnotation(final Class type) {
     Parameter[] parameters = method.getParameters();
-    String[] parameterNames = parameterNameDiscoverer.getParameterNames(method);
+    String[] discoveredNames = parameterNameDiscoverer.getParameterNames(method);
 
     ArrayList<ParameterInfo> result = new ArrayList<>();
     for (int i = 0; i < parameters.length; i++) {
       if (parameters[i].isAnnotationPresent(type)) {
-        result.add(new ParameterInfo(parameters[i], parameterNames[i]));
+        final String name =
+          (discoveredNames != null && i < discoveredNames.length && discoveredNames[i] != null)
+            ? discoveredNames[i]
+            : parameters[i].getName();
+
+        result.add(new ParameterInfo(parameters[i], name));
       }
     }
     return result;
